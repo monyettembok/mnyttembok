@@ -1,0 +1,52 @@
+using UnityEngine;
+using UnityEngine.Networking;
+#if ULSP
+using MFPS.ULogin;
+#endif
+
+public class bl_UnityIAPShopHandler
+{
+    /// <summary>
+    /// Receive the purchase confirmation from the Store API
+    /// </summary>
+    public void OnPurchaseResult(string productID, string receip)
+    {
+        //check which product was purchase
+        bl_ShopData.ShopVirtualCoins coinPack = bl_ShopData.Instance.CoinsPacks.Find(x => x.ID == productID);
+        if (coinPack != null)
+        {
+#if ULSP
+            //build the purchase data
+            CoinPurchaseData data = new CoinPurchaseData();
+            data.coins = coinPack.Amount;
+            data.productID = productID;
+            data.receipt = receip;
+
+            //save a copy of the purchase information in our game database for the record
+            bl_DataBase.Instance.SetCoinPurchase(data, (success) =>
+            {
+                //data saved
+                if (success)
+                {
+                    //mark purchase as complete
+                    bl_UnityIAP.Instance.ConfirmPendingPurchase();
+                    bl_LobbyUI.Instance.UpdateCoinsText();
+                    bl_ShopManager.Instance.notification?.Show($"<b><size=20>PURCHASE COMPLETE</size></b>\n{coinPack.Amount} COINS HAS BEEN ADDED TO YOUR ACCOUNT.");
+                    bl_ShopManager.Instance.notification?.Hide(3);
+                }
+                else
+                {
+                    Debug.LogError("Couldn't save purchase in DataBase!");
+                }
+                bl_ShopManager.Instance.LoadingUI.SetActive(false);
+            });
+#else
+                        Debug.LogError("Purchase has been processed but not saved because ULogin is disabled!");
+#endif
+        }
+        else
+        {
+            Debug.LogErrorFormat("Can't find product purchase '{0}'", productID);
+        }
+    }
+}
